@@ -90,6 +90,7 @@ def process_select(required, function_process, columns):
 def process_where(condition, columns, tables, table_info):
     """ Process where clause on a single table"""
     condition = format_string(condition)
+    print 'I am in', sys._getframe().f_code.co_name
     print condition
     print columns
     print tables
@@ -99,6 +100,7 @@ def process_where(condition, columns, tables, table_info):
 def process_where_join(condition, columns, tables, table_info):
     """Deals with Join type queries"""
     condition = format_string(condition)
+    print 'I am in', sys._getframe().f_code.co_name
     print condition
     print columns
     print tables
@@ -107,6 +109,7 @@ def process_where_join(condition, columns, tables, table_info):
 
 def process_join(columns, tables, table_info):
     """Deals with join without where"""
+    print 'I am in', sys._getframe().f_code.co_name
     print columns
     print tables
     print table_info
@@ -114,6 +117,7 @@ def process_join(columns, tables, table_info):
 
 def process_function(function_name, column_name, tables, table_info):
     """Deals with aggregate functions and distinct"""
+    print 'I am in', sys._getframe().f_code.co_name
     print function_name
     print column_name
     print tables
@@ -122,6 +126,7 @@ def process_function(function_name, column_name, tables, table_info):
 
 def process_project(columns, tables, table_info):
     """ Deals with project operation without where condition"""
+    print 'I am in', sys._getframe().f_code.co_name
     print columns
     print tables
     print table_info
