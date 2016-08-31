@@ -1,6 +1,10 @@
 """
-Contains various utility functions required for the mini Bash Shell
+Contains various utility functions required for the mini sql Shell
 """
+import re
+import sys
+import csv
+
 __author__ = 'harry-7'
 
 
@@ -23,3 +27,32 @@ def read_meta(file_name):
         elif line != '<end_table>':
             table_info[table_name].append(line)
     return table_info
+
+
+def read_table_data(table_name):
+    """ Reads the csv file data and returns it as a list"""
+    data = []
+    file_name = table_name + '.csv'
+    try:
+        data_file = open(file_name, 'rb')
+        reader = csv.reader(data_file)
+        for row in reader:
+            data.append(row)
+    except IOError:
+        error_exit('No file for given table: \'' + table_name + '\' found')
+
+
+def check_for(string, lis):
+    """Checks whether string is in the list"""
+    return string in lis
+
+
+def format_string(string):
+    """Returns the query in a formatted manner removing unnecessary spaces"""
+    return (re.sub(' +', ' ', string)).strip()
+
+
+def error_exit(error):
+    """Prints the error to Stderr and exits the program"""
+    sys.stderr.write(error)
+    exit(-1)
