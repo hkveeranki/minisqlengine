@@ -54,15 +54,15 @@ def format_string(string):
     return (re.sub(' +', ' ', string)).strip()
 
 
-def print_header(table_name, columns, table_info):
+def generate_header(table_name, columns):
     """Prints the header of the columns needed"""
     string = ''
     for column in columns:
         if string != '':
             string += ', '
-        string += table_name + '.' + table_info[table_name][column]
+        string += table_name + '.' + column
 
-    print string
+    return string
 
 
 def error_exit(error):
