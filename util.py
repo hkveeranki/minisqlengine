@@ -41,6 +41,7 @@ def read_table_data(table_name):
         data_file.close()
     except IOError:
         error_exit('No file for given table: \'' + table_name + '\' found')
+    return data
 
 
 def check_for(string, lis):
@@ -53,7 +54,18 @@ def format_string(string):
     return (re.sub(' +', ' ', string)).strip()
 
 
+def print_header(table_name, columns, table_info):
+    """Prints the header of the columns needed"""
+    string = ''
+    for column in columns:
+        if string != '':
+            string += ', '
+        string += table_name + '.' + table_info[table_name][column]
+
+    print string
+
+
 def error_exit(error):
     """Prints the error to Stderr and exits the program"""
-    sys.stderr.write(error+'\n')
+    sys.stderr.write(error + '\n')
     exit(-1)

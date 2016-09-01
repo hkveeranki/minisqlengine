@@ -5,7 +5,7 @@ Main runner file for sql engine
 import sys
 
 from util import read_meta, check_for, \
-    error_exit, format_string, read_table_data
+    error_exit, format_string, read_table_data, print_header
 
 __author__ = 'harry-7'
 METAFILE = 'metadata.txt'
@@ -39,12 +39,12 @@ def process_query(query, table_info):
     clauses = remaining.split('where')
     tables = format_string(clauses[0])
     tables = tables.split(',')
-    tables_data = []
+    tables_data = {}
     for i in range(0, len(tables)):
         tables[i] = format_string(tables[i])
         if tables[i] not in table_info.keys():
             error_exit('No Such Table \'' + tables[i] + '\' Exists')
-        tables_data.append(read_table_data(tables[i]))
+        tables_data[tables[i]] = read_table_data(tables[i])
 
     required = project[len('select '):]
     required = format_string(required)
@@ -66,8 +66,6 @@ def process_query(query, table_info):
         for query in function_process:
             process_function(query[0], query[1],
                              tables, table_info, tables_data)
-    elif len(tables) > 1:
-        process_join(columns, tables, table_info, tables_data)
     else:
         process_project(columns, tables, table_info, tables_data)
 
@@ -99,6 +97,7 @@ def process_where(condition, columns, tables, table_info, tables_data):
     print columns
     print tables
     print table_info
+    print tables_data
 
 
 def process_where_join(condition, columns, tables, table_info, tables_data):
@@ -109,21 +108,14 @@ def process_where_join(condition, columns, tables, table_info, tables_data):
     print columns
     print tables
     print table_info
-
-
-def process_join(columns, tables, table_info, tables_data):
-    """Deals with join without where"""
-
-    # print 'I am in', sys._getframe().f_code.co_name
-    print columns
-    print tables
-    print table_info
+    print tables_data
 
 
 def process_function(function_name, column_name, tables,
                      table_info, tables_data):
     """Deals with aggregate functions and distinct"""
     # print 'I am in', sys._getframe().f_code.co_name
+    print tables_data
     print function_name
     print column_name
     print tables
@@ -132,10 +124,35 @@ def process_function(function_name, column_name, tables,
 
 def process_project(columns, tables, table_info, tables_data):
     """ Deals with project operation without where condition"""
-    # print 'I am in', sys._getframe().f_code.co_name
-    print columns
-    print tables
-    print table_info
+    columns_in_table = {}
+    for table in tables:
+        columns_in_table[table] = []
+    for column in columns:
+        if '.' in column:
+            table, column = column.split('.')
+            if table not in tables:
+                error_exit('No Such table \'' + table + '\' exists')
+            columns_in_table[table].append(table_info[table].index(column))
+            continue
+        cnt = 0
+        for table in tables:
+            if column in table_info[table]:
+                if cnt > 1:
+                    error_exit('Abigous column name \'' + column + '\' given')
+                columns_in_table[table].append(table_info[table].index(column))
+                cnt += 1
+        if cnt == 0:
+            error_exit('No such column \'' + column + '\' found')
+
+    for table in tables:
+        if len(columns_in_table[table]) == 0:
+            continue
+        print_header(table, columns_in_table[table], table_info)
+        for data in tables_data[table]:
+            for column in columns_in_table[table]:
+                print data[column],
+            print
+        print
 
 
 if __name__ == '__main__':
