@@ -38,6 +38,7 @@ def read_table_data(table_name):
         reader = csv.reader(data_file)
         for row in reader:
             data.append(row)
+        data_file.close()
     except IOError:
         error_exit('No file for given table: \'' + table_name + '\' found')
 
@@ -54,5 +55,5 @@ def format_string(string):
 
 def error_exit(error):
     """Prints the error to Stderr and exits the program"""
-    sys.stderr.write(error)
+    sys.stderr.write(error+'\n')
     exit(-1)
