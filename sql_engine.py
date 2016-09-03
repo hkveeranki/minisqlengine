@@ -1,11 +1,12 @@
 """
 Main runner file for sql engine
 """
-
+from re import match
+import string
 import sys
 
-from util import read_meta, check_for, \
-    error_exit, format_string, read_table_data, generate_header, display_output
+from util import read_meta, check_for, error_exit, get_tables_columns, \
+    format_string, read_table_data, generate_header, display_output
 
 __author__ = 'harry-7'
 METAFILE = 'metadata.txt'
@@ -62,8 +63,8 @@ def process_query(query, table_info):
         process_where(clauses[1], columns,
                       tables[0], table_info, tables_data[tables[0]])
     elif len(clauses) > 1 and len(tables) > 1:
-        process_where_join(clauses[1], columns,
-                           tables, table_info, tables_data)
+        process_where_multiple(clauses[1], columns,
+                               tables, table_info, tables_data)
     elif len(function_process) != 0:
         process_aggregate(function_process, tables, table_info, tables_data)
     elif len(distinct_process) != 0:
@@ -99,58 +100,74 @@ def process_select(required, function_process, distinct_process, columns):
 def generate_evaluator(condition, table, table_info, data):
     """Generates the evaluator string for single table where"""
     condition = condition.split(' ')
-    string = ''
+    evaluator = ''
     for i in condition:
         if i == '=':
-            string += i * 2
+            evaluator += i * 2
         elif i.lower() == 'and' or i.lower == 'or':
-            string += ' ' + i.lower() + ' '
+            evaluator += ' ' + i.lower() + ' '
         elif i in table_info[table]:
-            string += data[table_info[table].index(i)]
+            evaluator += data[table_info[table].index(i)]
         else:
-            string += i
-    return string
+            evaluator += i
+    return evaluator
 
 
-def process_where_join(condition, columns, tables, table_info, tables_data):
+def process_where_multiple(condition, columns, tables,
+                           table_info, tables_data):
     """Deals with Join type queries"""
     condition = format_string(condition)
-    # print 'I am in', sys._getframe().f_code.co_name
-    print condition
-    print columns
-    print tables
-    print table_info
-    print tables_data
+    oper = ''
+    if '<' in condition:
+        condition = condition.split('<')
+        oper = '<'
+    elif '>' in condition:
+        condition = condition.split('>')
+        oper = '>'
+    elif '=' in condition:
+        condition = condition.split('=')
+        oper = '='
+    pattern = "([" + string.letters + "])+"
+    if len(condition) == 2 and match(
+            pattern, format_string(condition[1])) is not None:
+        print condition[1]
+        process_where_join([condition, oper], columns, tables, table_info, tables_data)
+
+
+def process_where_join(clauses, columns, tables, table_info, tables_data):
+    """ Processes the where clause with join condition"""
+    if clauses[1] == '=':
+        clauses[1] *= 2
+    columns_condition, tables_condition = get_tables_columns(
+        clauses[0], tables, table_info)
+    columns, tables = get_tables_columns(
+        columns, tables, table_info)
+    table1 = tables_condition[0]
+    table2 = tables_condition[1]
+    column1 = table_info[table1].index(columns_condition[table1][0])
+    column2 = table_info[table2].index(columns_condition[table2][0])
+    needed_data = []
+    for data in tables_data[table1]:
+        for row in tables_data[table2]:
+            evaluator = data[column1] + clauses[1] + row[column2]
+            if eval(evaluator):
+                needed_data.append(data + row)
+    display_output(tables, columns, table_info, needed_data)
 
 
 def process_join(columns, tables, table_info, tables_data):
     """Deals with Join type queries"""
 
-    columns_in_table = {}
-    tables_needed = []
-    for column in columns:
-        if '.' in column:
-            table, column = column.split('.')
-            if table not in tables:
-                error_exit('No Such table \'' + table + '\' exists')
-            if table not in columns_in_table.keys():
-                columns_in_table[table] = []
-                tables_needed.append(table)
-            columns_in_table[table].append(column)
-            continue
-        cnt = 0
-        for table in tables:
-            if column in table_info[table]:
-                if cnt > 1:
-                    error_exit('Abigous column name \'' + column + '\' given')
-                if table not in columns_in_table.keys():
-                    columns_in_table[table] = []
-                    tables_needed.append(table)
-                columns_in_table[table].append(column)
-                cnt += 1
-        if cnt == 0:
-            error_exit('No such column \'' + column + '\' found')
-    display_output(tables_needed, columns_in_table, table_info, tables_data)
+    columns_in_table, tables_needed = get_tables_columns(
+        columns, tables, table_info)
+    join_data = []
+    table1 = tables_needed[0]
+    table2 = tables_needed[1]
+    for item1 in tables_data[table1]:
+        for item2 in tables_data[table2]:
+            join_data.append(item1 + item2)
+    display_output(tables_needed, columns_in_table, table_info, join_data)
+    return
 
 
 def process_where(condition, columns, table, table_info, table_data):
@@ -162,8 +179,8 @@ def process_where(condition, columns, table, table_info, table_data):
     print generate_header(table, columns)
 
     for row in table_data:
-        string = generate_evaluator(condition, table, table_info, row)
-        if eval(string):
+        evaluator = generate_evaluator(condition, table, table_info, row)
+        if eval(evaluator):
             for column in columns:
                 print row[table_info[table].index(column)],
             print
