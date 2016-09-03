@@ -65,6 +65,36 @@ def generate_header(table_name, columns):
     return string
 
 
+def display_output(tables_needed, columns_in_table, table_info, tables_data):
+    """ Displays the output for a join operation without `where` clause"""
+    if len(columns_in_table) == 2:
+        join_data = []
+        table1 = tables_needed[0]
+        table2 = tables_needed[1]
+        header1 = generate_header(table1, columns_in_table[table1])
+        header2 = generate_header(table2, columns_in_table[table2])
+        print header1 + ', ' + header2
+        for item1 in tables_data[table1]:
+            for item2 in tables_data[table2]:
+                join_data.append(item1 + item2)
+        for item in join_data:
+            for column in columns_in_table[table1]:
+                print item[table_info[table1].index(column)],
+            for column in columns_in_table[table2]:
+                print item[table_info[table2].index(column) +
+                           len(table_info[table1])],
+            print
+
+    else:
+        for table in tables_needed:
+            print generate_header(table, columns_in_table[table])
+            for data in tables_data[table]:
+                for column in columns_in_table[table]:
+                    print data[table_info[table].index(column)],
+                print
+            print
+
+
 def error_exit(error):
     """Prints the error to Stderr and exits the program"""
     sys.stderr.write(error + '\n')

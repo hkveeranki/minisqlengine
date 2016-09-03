@@ -5,7 +5,7 @@ Main runner file for sql engine
 import sys
 
 from util import read_meta, check_for, \
-    error_exit, format_string, read_table_data, generate_header
+    error_exit, format_string, read_table_data, generate_header, display_output
 
 __author__ = 'harry-7'
 METAFILE = 'metadata.txt'
@@ -53,16 +53,15 @@ def process_query(query, table_info):
     columns = []
     process_select(required, function_process, distinct_process, columns)
 
+    if len(clauses) > 1 and \
+            (len(function_process) != 0 or len(distinct_process) != 0):
+        error_exit('ERROR:Where Condition can '
+                   'only be given to project functions')
     if len(clauses) > 1 and len(tables) == 1:
         # Single table where condition
-        if len(function_process) != 0 or len(distinct_process) != 0:
-            error_exit('ERROR:Where Condition can '
-                       'only be given to project functions')
-        process_where(clauses[1], columns, tables[0], table_info, tables_data[tables[0]])
+        process_where(clauses[1], columns,
+                      tables[0], table_info, tables_data[tables[0]])
     elif len(clauses) > 1 and len(tables) > 1:
-        if len(function_process) != 0 or len(distinct_process) != 0:
-            error_exit('ERROR:Where Condition can '
-                       'only be given to project functions')
         process_where_join(clauses[1], columns,
                            tables, table_info, tables_data)
     elif len(function_process) != 0:
@@ -128,33 +127,30 @@ def process_join(columns, tables, table_info, tables_data):
     """Deals with Join type queries"""
 
     columns_in_table = {}
-
+    tables_needed = []
     for column in columns:
         if '.' in column:
             table, column = column.split('.')
             if table not in tables:
                 error_exit('No Such table \'' + table + '\' exists')
-            columns_in_table[table].append(table_info[table].index(column))
+            if table not in columns_in_table.keys():
+                columns_in_table[table] = []
+                tables_needed.append(table)
+            columns_in_table[table].append(column)
             continue
         cnt = 0
         for table in tables:
             if column in table_info[table]:
                 if cnt > 1:
                     error_exit('Abigous column name \'' + column + '\' given')
-                columns_in_table[table].append(table_info[table].index(column))
+                if table not in columns_in_table.keys():
+                    columns_in_table[table] = []
+                    tables_needed.append(table)
+                columns_in_table[table].append(column)
                 cnt += 1
         if cnt == 0:
             error_exit('No such column \'' + column + '\' found')
-
-    for table in tables:
-        if len(columns_in_table[table]) == 0:
-            continue
-        print generate_header(table, columns_in_table[table])
-        for data in tables_data[table]:
-            for column in columns_in_table[table]:
-                print data[column],
-            print
-        print
+    display_output(tables_needed, columns_in_table, table_info, tables_data)
 
 
 def process_where(condition, columns, table, table_info, table_data):
@@ -188,7 +184,8 @@ def process_aggregate(queries, tables,
             for tab in tables:
                 if column_name in table_info[tab]:
                     if cnt > 1:
-                        error_exit('Abigous column name \'' + column_name + '\' given')
+                        error_exit('Abigous column name \'' +
+                                   column_name + '\' given')
                     table = tab
                     column = column_name
                     cnt += 1
@@ -196,9 +193,7 @@ def process_aggregate(queries, tables,
                 error_exit('No such column \'' + column_name + '\' found')
 
         data = []
-        if header != '':
-            header += ' , '
-        header += table + '.' + column
+        header += table + '.' + column + ', '
         for row in tables_data[table]:
             data.append(int(row[table_info[table].index(column)]))
 
@@ -211,18 +206,19 @@ def process_aggregate(queries, tables,
         elif function_name.lower() == 'avg':
             result += str(float(sum(data)) / len(data))
         result += ' '
+    header.strip(', ')
     print header
     print result
 
 
 def process_project(columns, table, table_info, tables_data):
-    """ Deals with project operation without where condition in a single table"""
+    """ Deals with project operation without in a single table"""
     if len(columns) == 1 and columns[0] == '*':
         columns = table_info[table]
     for column in columns:
         if column not in table_info[table]:
             error_exit('No Such column \'' + column +
-                       '\' found in the given table \'' + table + '\' ')
+                       '\' found i  n the given table \'' + table + '\' ')
     print generate_header(table, columns)
 
     for data in tables_data[table]:
