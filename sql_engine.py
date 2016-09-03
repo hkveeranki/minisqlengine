@@ -113,22 +113,6 @@ def generate_evaluator(condition, table, table_info, data):
     return string
 
 
-def process_where(condition, columns, table, table_info, table_data):
-    """ Process where clause on a single table"""
-    condition = format_string(condition)
-
-    if len(columns) == 1 and columns[0] == '*':
-        columns = table_info[table]
-    print generate_header(table, columns)
-
-    for row in table_data:
-        string = generate_evaluator(condition, table, table_info, row)
-        if eval(string):
-            for column in columns:
-                print row[table_info[table].index(column)],
-            print
-
-
 def process_where_join(condition, columns, tables, table_info, tables_data):
     """Deals with Join type queries"""
     condition = format_string(condition)
@@ -171,6 +155,22 @@ def process_join(columns, tables, table_info, tables_data):
                 print data[column],
             print
         print
+
+
+def process_where(condition, columns, table, table_info, table_data):
+    """ Process where clause on a single table"""
+    condition = format_string(condition)
+
+    if len(columns) == 1 and columns[0] == '*':
+        columns = table_info[table]
+    print generate_header(table, columns)
+
+    for row in table_data:
+        string = generate_evaluator(condition, table, table_info, row)
+        if eval(string):
+            for column in columns:
+                print row[table_info[table].index(column)],
+            print
 
 
 def process_aggregate(queries, tables,
