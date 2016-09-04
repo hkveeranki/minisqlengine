@@ -5,8 +5,9 @@ from re import match
 import string
 import sys
 
-from util import read_meta, check_for, error_exit, get_tables_columns, \
-    format_string, read_table_data, generate_header, display_output
+from utility_functions import read_meta, check_for, error_exit, get_tables_columns, \
+    format_string, read_table_data, generate_header, display_output, \
+    search_column, join_needed_data
 
 __author__ = 'harry-7'
 METAFILE = 'metadata.txt'
@@ -18,7 +19,8 @@ def main():
     table_info = read_meta(METAFILE)
     queries = str(sys.argv[1]).split(';')
     for query in queries:
-        process_query(query, table_info)
+        if query != '':
+            process_query(query, table_info)
 
 
 def process_query(query, table_info):
@@ -102,6 +104,7 @@ def generate_evaluator(condition, table, table_info, data):
     condition = condition.split(' ')
     evaluator = ''
     for i in condition:
+        i = format_string(i)
         if i == '=':
             evaluator += i * 2
         elif i.lower() == 'and' or i.lower == 'or':
@@ -117,21 +120,61 @@ def process_where_multiple(condition, columns, tables,
                            table_info, tables_data):
     """Deals with Join type queries"""
     condition = format_string(condition)
+    sentence = condition
+    operators = ['<', '>', '=']
     oper = ''
-    if '<' in condition:
-        condition = condition.split('<')
-        oper = '<'
-    elif '>' in condition:
-        condition = condition.split('>')
-        oper = '>'
-    elif '=' in condition:
-        condition = condition.split('=')
-        oper = '='
+    for operator in operators:
+        if operator in condition:
+            condition = condition.split(operator)
+            oper = operator
+
     pattern = "([" + string.letters + "])+"
     if len(condition) == 2 and match(
             pattern, format_string(condition[1])) is not None:
-        print condition[1]
         process_where_join([condition, oper], columns, tables, table_info, tables_data)
+        return
+    process_special_where(sentence, columns, tables, table_info, tables_data)
+
+
+def process_special_where(sentence, columns, tables, table_info, tables_data):
+    """Process the special case of where"""
+    condition = []
+    oper = ''
+    if 'and' in sentence.lower().split():
+        oper = 'and'
+        condition = sentence.split('and')
+    elif 'or' in sentence.lower():
+        oper = 'or'
+        condition = sentence.split('or')
+    else:
+        condition = [sentence]
+    needed_data = get_needed_data(condition, tables, tables_data, table_info)
+    columns_in_table, tables_needed = get_tables_columns(columns, tables, table_info)
+    join_data = join_needed_data(oper, tables_needed, needed_data, tables_data)
+    display_output(tables_needed, columns_in_table, table_info, join_data, True)
+
+
+def get_needed_data(condition, tables, tables_data, table_info):
+    """ Gets needed data for where clause"""
+    operators = ['<', '>', '=']
+    needed_data = {}
+    for query in condition:
+        column = ''
+        needed = []
+        for operator in operators:
+            if operator in query:
+                needed = query.split(operator)
+                break
+        if len(needed) != 2:
+            error_exit('Syntax error in where clause')
+        table, column = search_column(format_string(needed[0]), tables, table_info)
+        needed_data[table] = []
+        query = query.replace(needed[0], ' ' + column + ' ')
+        for data in tables_data[table]:
+            evaluator = generate_evaluator(query, table, table_info, data)
+            if eval(evaluator):
+                needed_data[table].append(data)
+    return needed_data
 
 
 def process_where_join(clauses, columns, tables, table_info, tables_data):
@@ -152,21 +195,24 @@ def process_where_join(clauses, columns, tables, table_info, tables_data):
             evaluator = data[column1] + clauses[1] + row[column2]
             if eval(evaluator):
                 needed_data.append(data + row)
-    display_output(tables, columns, table_info, needed_data)
+    display_output(tables, columns, table_info, needed_data, True)
 
 
 def process_join(columns, tables, table_info, tables_data):
     """Deals with Join type queries"""
-
     columns_in_table, tables_needed = get_tables_columns(
         columns, tables, table_info)
     join_data = []
-    table1 = tables_needed[0]
-    table2 = tables_needed[1]
-    for item1 in tables_data[table1]:
-        for item2 in tables_data[table2]:
-            join_data.append(item1 + item2)
-    display_output(tables_needed, columns_in_table, table_info, join_data)
+
+    if len(tables_needed) == 2:
+        table1 = tables_needed[0]
+        table2 = tables_needed[1]
+        for item1 in tables_data[table1]:
+            for item2 in tables_data[table2]:
+                join_data.append(item1 + item2)
+        display_output(tables_needed, columns_in_table, table_info, join_data, True)
+    else:
+        display_output(tables_needed, columns_in_table, table_info, tables_data, False)
     return
 
 
@@ -201,7 +247,7 @@ def process_aggregate(queries, tables,
             for tab in tables:
                 if column_name in table_info[tab]:
                     if cnt > 1:
-                        error_exit('Abigous column name \'' +
+                        error_exit('Ambiguous column name \'' +
                                    column_name + '\' given')
                     table = tab
                     column = column_name
