@@ -55,6 +55,8 @@ def process_query(query, table_info):
     required = required.split(',')
     columns = []
     process_select(required, function_process, distinct_process, columns)
+    if len(columns) + len(function_process) + len(distinct_process) < 1:
+        error_exit('Nothing given to select')
 
     if len(clauses) > 1 and \
             (len(function_process) != 0 or len(distinct_process) != 0):
@@ -77,6 +79,36 @@ def process_query(query, table_info):
         process_project(columns, tables[0], table_info, tables_data)
 
 
+def generate_evaluator(condition, table, table_info, data):
+    """Generates the evaluator string for single table where"""
+    condition = condition.split(' ')
+    evaluator = ''
+    for i in condition:
+        i = format_string(i)
+        if i == '=':
+            evaluator += i * 2
+        elif i.lower() == 'and' or i.lower == 'or':
+            evaluator += ' ' + i.lower() + ' '
+        elif '.' in i:
+            table_here, column = search_column(i, [table], table_info)
+            if table_here != table:
+                error_exit('Unknown table \'' + table_here + '\' given')
+            elif column not in table_info[table]:
+                error_exit('No Such column \'' + column + '\' found in \''
+                           + table_here + '\' given')
+            evaluator += data[table_info[table_here].index(column)]
+        elif i in table_info[table]:
+            evaluator += data[table_info[table].index(i)]
+        else:
+            evaluator += i
+    return evaluator
+
+
+def process_distinct(distinct_process, tables, table_info, tables_data):
+    """ Process the queries with distinct """
+    pass
+
+
 def process_select(required, function_process, distinct_process, columns):
     """Process the select part of the query and return tokens"""
     column_name = ''
@@ -96,24 +128,9 @@ def process_select(required, function_process, distinct_process, columns):
                     function_process.append([function, column_name])
                 break
         if not taken:
-            columns.append(thing.strip('()'))
-
-
-def generate_evaluator(condition, table, table_info, data):
-    """Generates the evaluator string for single table where"""
-    condition = condition.split(' ')
-    evaluator = ''
-    for i in condition:
-        i = format_string(i)
-        if i == '=':
-            evaluator += i * 2
-        elif i.lower() == 'and' or i.lower == 'or':
-            evaluator += ' ' + i.lower() + ' '
-        elif i in table_info[table]:
-            evaluator += data[table_info[table].index(i)]
-        else:
-            evaluator += i
-    return evaluator
+            thing = format_string(thing)
+            if thing != '':
+                columns.append(thing.strip('()'))
 
 
 def process_where_multiple(condition, columns, tables,
@@ -123,14 +140,21 @@ def process_where_multiple(condition, columns, tables,
     sentence = condition
     operators = ['<', '>', '=']
     oper = ''
+    if 'and' in condition:
+        condition = condition.split('and')
+        oper = 'and'
+    elif 'or' in condition:
+        condition = condition.split('or')
+        oper = 'or'
+    else:
+        condition = [condition]
+    if len(condition) > 2:
+        error_exit('Maximum one AND clause can be given')
+    condition1 = condition[0]
     for operator in operators:
-        if operator in condition:
-            condition = condition.split(operator)
-            oper = operator
-
-    pattern = "([" + string.letters + "])+"
-    if len(condition) == 2 and match(
-            pattern, format_string(condition[1])) is not None:
+        if operator in condition1:
+            condition1 = condition1.split(operator)
+    if len(condition1) == 2 and '.' in condition1[1]:
         process_where_join([condition, oper], columns, tables, table_info, tables_data)
         return
     process_special_where(sentence, columns, tables, table_info, tables_data)
@@ -172,30 +196,56 @@ def get_needed_data(condition, tables, tables_data, table_info):
         query = query.replace(needed[0], ' ' + column + ' ')
         for data in tables_data[table]:
             evaluator = generate_evaluator(query, table, table_info, data)
-            if eval(evaluator):
-                needed_data[table].append(data)
+            try:
+                if eval(evaluator):
+                    needed_data[table].append(data)
+            except NameError:
+                error_exit('AND clause cannot be used in join queries')
     return needed_data
 
 
 def process_where_join(clauses, columns, tables, table_info, tables_data):
     """ Processes the where clause with join condition"""
-    if clauses[1] == '=':
-        clauses[1] *= 2
-    columns_condition, tables_condition = get_tables_columns(
-        clauses[0], tables, table_info)
-    columns, tables = get_tables_columns(
-        columns, tables, table_info)
-    table1 = tables_condition[0]
-    table2 = tables_condition[1]
-    column1 = table_info[table1].index(columns_condition[table1][0])
-    column2 = table_info[table2].index(columns_condition[table2][0])
-    needed_data = []
-    for data in tables_data[table1]:
-        for row in tables_data[table2]:
-            evaluator = data[column1] + clauses[1] + row[column2]
-            if eval(evaluator):
-                needed_data.append(data + row)
-    display_output(tables, columns, table_info, needed_data, True)
+    needed_data = {}
+    failed_data = {}
+    operators = ['<', '>', '=']
+    for condition in clauses[0]:
+        needed = []
+        oper = ''
+        condition = format_string(condition)
+        for operator in operators:
+            if operator in condition:
+                needed = condition.split(operator)
+                oper = operator
+                if oper == '=':
+                    oper *= 2
+                break
+        if len(needed) > 2:
+            error_exit('Error in where clause')
+        columns_condition, tables_condition = get_tables_columns(
+            needed, tables, table_info)
+        table1 = tables[0]
+        table2 = tables[1]
+        column1 = table_info[table1].index(columns_condition[table1][0])
+        column2 = table_info[table2].index(columns_condition[table2][0])
+        failed_data[condition] = []
+        needed_data[condition] = []
+        for data in tables_data[table1]:
+            for row in tables_data[table2]:
+                evaluator = data[column1] + oper + row[column2]
+                if eval(evaluator):
+                    needed_data[condition].append(data + row)
+                else:
+                    failed_data[condition].append(data + row)
+    if clauses[1] != '':
+        join_data = join_needed_data(clauses[1], clauses[0], needed_data, failed_data)
+    else:
+        join_data = []
+        for key in needed_data.keys():
+            for data in needed_data[key]:
+                join_data.append(data)
+    columns, tables = get_tables_columns(columns, tables, table_info)
+    display_output(tables, columns, table_info, join_data, True)
 
 
 def process_join(columns, tables, table_info, tables_data):
@@ -223,7 +273,6 @@ def process_where(condition, columns, table, table_info, table_data):
     if len(columns) == 1 and columns[0] == '*':
         columns = table_info[table]
     print generate_header(table, columns)
-
     for row in table_data:
         evaluator = generate_evaluator(condition, table, table_info, row)
         if eval(evaluator):

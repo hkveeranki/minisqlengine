@@ -1,0 +1,22 @@
++--------+----------+
+| DEPTNO | ENAME    |
++--------+----------+
+|     20 | SMITH    |
+|     30 | ALLEN    |
+|     30 | WARD     |
+|     20 | JONES    |
+|     30 | MARTIN   |
+|     30 | BLAKE    |
+|     10 | CLARK    |
+|     20 | SCOTT    |
+|     10 | KING     |
+|     30 | TURNER   |
+|     20 | ADAMS    |
+|     30 | JAMES    |
+|     20 | FORD     |
+|     10 | MILLER   |
+|     20 | RAJ      |
+|     30 | QUEEN    |
+|     10 | ACHILLES |
+|     40 | CARL     |
+

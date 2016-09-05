@@ -152,8 +152,8 @@ def join_needed_data(oper, tables, needed_data, tables_data):
 def join_data_and(tables, needed_data):
     """ Joins the data if AND operator in condition"""
     final_data = []
-    table1 = tables[0]
-    table2 = tables[1]
+    table1 = format_string(tables[0])
+    table2 = format_string(tables[1])
     for item1 in needed_data[table1]:
         for item2 in needed_data[table2]:
             final_data.append(item1 + item2)
@@ -163,8 +163,8 @@ def join_data_and(tables, needed_data):
 def join_data_or(tables, needed_data, tables_data):
     """ Joins the data if OR operator in condition"""
     final_data = []
-    table1 = tables[0]
-    table2 = tables[1]
+    table1 = format_string(tables[0])
+    table2 = format_string(tables[1])
     for item1 in needed_data[table1]:
         for item2 in tables_data[table2]:
             if item2 not in needed_data[table2]:
