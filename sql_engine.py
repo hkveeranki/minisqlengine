@@ -1,13 +1,11 @@
 """
 Main runner file for sql engine
 """
-from re import match
-import string
 import sys
 
-from utility_functions import read_meta, check_for, error_exit, get_tables_columns, \
-    format_string, read_table_data, generate_header, display_output, \
-    search_column, join_needed_data
+from utility_functions import read_meta, check_for, error_exit, \
+    get_tables_columns, format_string, read_table_data, \
+    generate_header, display_output, search_column, join_needed_data
 
 __author__ = 'harry-7'
 METAFILE = 'metadata.txt'
@@ -40,6 +38,8 @@ def process_query(query, table_info):
         error_exit("Syntax Error: More than one from statement given")
     if not check_for('select', project.lower().split()):
         error_exit("Syntax Error: No Select statement given")
+    elif query.lower().count('select') > 1:
+        error_exit('More than one select statement given')
     clauses = remaining.split('where')
     tables = format_string(clauses[0])
     tables = tables.split(',')
@@ -62,6 +62,8 @@ def process_query(query, table_info):
             (len(function_process) != 0 or len(distinct_process) != 0):
         error_exit('ERROR:Where Condition can '
                    'only be given to project functions')
+    elif len(distinct_process) != 0 and len(function_process) != 0:
+        error_exit('distinct and aggregate functions cannot be given at a time')
     if len(clauses) > 1 and len(tables) == 1:
         # Single table where condition
         process_where(clauses[1], columns,
@@ -72,7 +74,7 @@ def process_query(query, table_info):
     elif len(function_process) != 0:
         process_aggregate(function_process, tables, table_info, tables_data)
     elif len(distinct_process) != 0:
-        pass
+        process_distinct(distinct_process, tables, table_info, tables_data)
     elif len(tables) > 1:
         process_join(columns, tables, table_info, tables_data)
     else:
@@ -94,19 +96,14 @@ def generate_evaluator(condition, table, table_info, data):
             if table_here != table:
                 error_exit('Unknown table \'' + table_here + '\' given')
             elif column not in table_info[table]:
-                error_exit('No Such column \'' + column + '\' found in \''
-                           + table_here + '\' given')
+                error_exit('No Such column \'' + column + '\' found in \'' +
+                           table_here + '\' given')
             evaluator += data[table_info[table_here].index(column)]
         elif i in table_info[table]:
             evaluator += data[table_info[table].index(i)]
         else:
             evaluator += i
     return evaluator
-
-
-def process_distinct(distinct_process, tables, table_info, tables_data):
-    """ Process the queries with distinct """
-    pass
 
 
 def process_select(required, function_process, distinct_process, columns):
@@ -123,7 +120,7 @@ def process_select(required, function_process, distinct_process, columns):
                 else:
                     column_name = thing.strip(')').split(function + '(')[1]
                 if function == 'distinct':
-                    distinct_process.append([function, column_name])
+                    distinct_process.append(column_name)
                 else:
                     function_process.append([function, column_name])
                 break
@@ -131,6 +128,32 @@ def process_select(required, function_process, distinct_process, columns):
             thing = format_string(thing)
             if thing != '':
                 columns.append(thing.strip('()'))
+
+
+def process_distinct(distinct_process, tables, table_info, tables_data):
+    """ Process the queries with distinct """
+    column_data = {}
+    max_len = 0
+    header = ''
+    for column in distinct_process:
+        table, column = search_column(column, tables, table_info)
+        header += table + '.' + column + ','
+        data = []
+        for row in tables_data[table]:
+            value = row[table_info[table].index(column)]
+            if value not in data:
+                data.append(value)
+        column_data[column] = data
+        max_len = max(max_len, len(tables_data[table]))
+    print header.strip(',')
+    for i in range(max_len):
+        ans = ''
+        for column in column_data:
+            if i < len(column_data[column]):
+                ans += column_data[column][i] + ','
+            else:
+                ans += ','
+        print ans.strip(',')
 
 
 def process_where_multiple(condition, columns, tables,
@@ -155,7 +178,8 @@ def process_where_multiple(condition, columns, tables,
         if operator in condition1:
             condition1 = condition1.split(operator)
     if len(condition1) == 2 and '.' in condition1[1]:
-        process_where_join([condition, oper], columns, tables, table_info, tables_data)
+        process_where_join([condition, oper], columns,
+                           tables, table_info, tables_data)
         return
     process_special_where(sentence, columns, tables, table_info, tables_data)
 
@@ -173,9 +197,11 @@ def process_special_where(sentence, columns, tables, table_info, tables_data):
     else:
         condition = [sentence]
     needed_data = get_needed_data(condition, tables, tables_data, table_info)
-    columns_in_table, tables_needed = get_tables_columns(columns, tables, table_info)
+    columns_in_table, tables_needed = get_tables_columns(
+        columns, tables, table_info)
     join_data = join_needed_data(oper, tables_needed, needed_data, tables_data)
-    display_output(tables_needed, columns_in_table, table_info, join_data, True)
+    display_output(tables_needed, columns_in_table, table_info,
+                   join_data, True)
 
 
 def get_needed_data(condition, tables, tables_data, table_info):
@@ -183,7 +209,6 @@ def get_needed_data(condition, tables, tables_data, table_info):
     operators = ['<', '>', '=']
     needed_data = {}
     for query in condition:
-        column = ''
         needed = []
         for operator in operators:
             if operator in query:
@@ -191,7 +216,8 @@ def get_needed_data(condition, tables, tables_data, table_info):
                 break
         if len(needed) != 2:
             error_exit('Syntax error in where clause')
-        table, column = search_column(format_string(needed[0]), tables, table_info)
+        table, column = search_column(format_string(needed[0]),
+                                      tables, table_info)
         needed_data[table] = []
         query = query.replace(needed[0], ' ' + column + ' ')
         for data in tables_data[table]:
@@ -238,7 +264,8 @@ def process_where_join(clauses, columns, tables, table_info, tables_data):
                 else:
                     failed_data[condition].append(data + row)
     if clauses[1] != '':
-        join_data = join_needed_data(clauses[1], clauses[0], needed_data, failed_data)
+        join_data = join_needed_data(clauses[1],
+                                     clauses[0], needed_data, failed_data)
     else:
         join_data = []
         for key in needed_data.keys():
@@ -260,9 +287,11 @@ def process_join(columns, tables, table_info, tables_data):
         for item1 in tables_data[table1]:
             for item2 in tables_data[table2]:
                 join_data.append(item1 + item2)
-        display_output(tables_needed, columns_in_table, table_info, join_data, True)
+        display_output(tables_needed, columns_in_table, table_info,
+                       join_data, True)
     else:
-        display_output(tables_needed, columns_in_table, table_info, tables_data, False)
+        display_output(tables_needed, columns_in_table, table_info,
+                       tables_data, False)
     return
 
 
@@ -275,10 +304,12 @@ def process_where(condition, columns, table, table_info, table_data):
     print generate_header(table, columns)
     for row in table_data:
         evaluator = generate_evaluator(condition, table, table_info, row)
+        ans = ''
         if eval(evaluator):
             for column in columns:
-                print row[table_info[table].index(column)],
-            print
+                ans += row[table_info[table].index(column)] + ','
+                fl = True
+            print ans.strip(',')
 
 
 def process_aggregate(queries, tables,
@@ -305,7 +336,7 @@ def process_aggregate(queries, tables,
                 error_exit('No such column \'' + column_name + '\' found')
 
         data = []
-        header += table + '.' + column + ', '
+        header += table + '.' + column + ','
         for row in tables_data[table]:
             data.append(int(row[table_info[table].index(column)]))
 
@@ -317,8 +348,8 @@ def process_aggregate(queries, tables,
             result += str(sum(data))
         elif function_name.lower() == 'avg':
             result += str(float(sum(data)) / len(data))
-        result += ' '
-    header.strip(', ')
+        result += ','
+    header.strip(',')
     print header
     print result
 
@@ -334,9 +365,10 @@ def process_project(columns, table, table_info, tables_data):
     print generate_header(table, columns)
 
     for data in tables_data[table]:
+        ans = ''
         for column in columns:
-            print data[table_info[table].index(column)],
-        print
+            ans += data[table_info[table].index(column)] + ','
+        print ans.strip(',')
 
 
 if __name__ == '__main__':

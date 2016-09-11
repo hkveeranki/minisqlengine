@@ -62,7 +62,7 @@ def generate_header(table_name, columns):
     string = ''
     for column in columns:
         if string != '':
-            string += ', '
+            string += ','
         string += table_name + '.' + column
 
     return string
@@ -75,22 +75,24 @@ def display_output(tables_needed, columns_in_table, table_info, tables_data, joi
         table2 = tables_needed[1]
         header1 = generate_header(table1, columns_in_table[table1])
         header2 = generate_header(table2, columns_in_table[table2])
-        print header1 + ', ' + header2
+        print header1 + ',' + header2
         for item in tables_data:
+            ans = ''
             for column in columns_in_table[table1]:
-                print item[table_info[table1].index(column)],
+                ans += item[table_info[table1].index(column)] + ','
             for column in columns_in_table[table2]:
-                print item[table_info[table2].index(column) +
-                           len(table_info[table1])],
-            print
+                ans += item[table_info[table2].index(column) +
+                            len(table_info[table1])] + ','
+            print ans.strip(',')
 
     else:
         for table in tables_needed:
             print generate_header(table, columns_in_table[table])
             for data in tables_data[table]:
+                ans = ''
                 for column in columns_in_table[table]:
-                    print data[table_info[table].index(column)],
-                print
+                    ans += data[table_info[table].index(column)] + ','
+                print ans.strip(',')
             print
 
 
@@ -136,6 +138,8 @@ def search_column(column, tables, table_info):
             if cnt > 1:
                 error_exit('Abigous column name \'' + column + '\' given')
             table_needed = table
+    if cnt == 0:
+        error_exit('No Such Column \'' + column + '\' found')
     return table_needed, column
 
 
