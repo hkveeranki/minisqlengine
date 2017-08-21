@@ -47,7 +47,7 @@ def read_table_data(table_name):
     return data
 
 
-def check_for(string, lis):
+def check_for_string(string, lis):
     """Checks whether string is in the list"""
     return string in lis
 
@@ -99,48 +99,8 @@ def display_output(tables_needed, columns_in_table, table_info, tables_data, joi
 def error_exit(error):
     """Prints the error to Stderr and exits the program"""
     sys.stderr.write(error + '\n')
-    exit(-1)
+    quit(-1)
 
-
-def get_tables_columns(columns, tables, table_info):
-    """ Selects required tables and columns in it"""
-    columns_in_table = {}
-    tables_needed = []
-    if len(columns) == 1 and columns[0] == '*':
-        for table in tables:
-            columns_in_table[table] = []
-            for column in table_info[table]:
-                columns_in_table[table].append(column)
-        return columns_in_table, tables
-    for column in columns:
-        table, column = search_column(column, tables, table_info)
-        if table not in columns_in_table.keys():
-            columns_in_table[table] = []
-            tables_needed.append(table)
-        columns_in_table[table].append(column)
-    return columns_in_table, tables_needed
-
-
-def search_column(column, tables, table_info):
-    """Searches for column in list of tables"""
-    if '.' in column:
-        table, column = column.split('.')
-        table = format_string(table)
-        column = format_string(column)
-        if table not in tables:
-            error_exit('No Such table \'' + table + '\' exists')
-        return table, column
-    cnt = 0
-    table_needed = ''
-    for table in tables:
-        if column in table_info[table]:
-            cnt += 1
-            if cnt > 1:
-                error_exit('Abigous column name \'' + column + '\' given')
-            table_needed = table
-    if cnt == 0:
-        error_exit('No Such Column \'' + column + '\' found')
-    return table_needed, column
 
 
 def join_needed_data(oper, tables, needed_data, tables_data):
